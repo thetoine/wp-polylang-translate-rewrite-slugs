@@ -1,9 +1,9 @@
 <?php
 /*
-Plugin Name: Polylang - Translate URL Rewrite Slugs
+Plugin Name: Polylang - Translate URL Rewrite Slugs - TheToine fork
 Plugin URI: https://github.com/KLicheR/wp-polylang-translate-rewrite-slugs
 Description: Help translate post types rewrite slugs.
-Version: 0.3.6
+Version: 0.3.6.1
 Author: KLicheR
 Author URI: https://github.com/KLicheR
 License: GPLv2 or later
@@ -12,7 +12,7 @@ License: GPLv2 or later
 /*  Copyright 2014  Kristoffer Laurin-Racicot  (email : kristoffer.lr@gmail.com)
 
 	This program is free software; you can redistribute it and/or modify
-	it under the terms of the GNU General Public License, version 2, as 
+	it under the terms of the GNU General Public License, version 2, as
 	published by the Free Software Foundation.
 
 	This program is distributed in the hope that it will be useful,
@@ -114,7 +114,11 @@ class Polylang_Translate_Rewrite_Slugs {
 		// Fix "get_permalink" for these post types.
 		add_filter('post_type_link', array($this, 'post_type_link_filter'), 10, 4);
 		// Fix "get_post_type_archive_link" for these post types.
-		add_filter('post_type_archive_link', array($this, 'post_type_archive_link_filter'), 25, 2);
+        add_filter('post_type_archive_link', array($this, 'post_type_archive_link_filter'), 25, 2);
+
+        // Fix post_type_archive_title Wordpress function in /breadcrumb-navxt/class.bcn_breadcrumb_trail.php
+        add_filter('post_type_archive_title', array($this, 'post_type_archive_title_filter'), 10, 2);
+
 		// Fix "get_term_link" for taxonomies.
 		add_filter('term_link', array($this, 'term_link_filter'), 10, 3);
 
@@ -171,28 +175,80 @@ class Polylang_Translate_Rewrite_Slugs {
 		}
 	}
 
-	/**
-	 * Fix "get_permalink" for this post type.
-	 */
-	public function post_type_link_filter($post_link, $post, $leavename, $sample) {
-		global $polylang;
+    /**
+     * Fix "get_permalink" for this post type.
+     */
+    public function post_type_link_filter($post_link, $post, $leavename, $sample) {
+        global $polylang;
 
-		// We always check for the post language. Otherwise, the current language.
-		$post_language = $polylang->model->get_post_language($post->ID);
-		if ($post_language) {
-			$lang = $post_language->slug;
-		} else {
-			$lang = pll_default_language();
-		}
+        // We always check for the post language. Otherwise, the current language.
+        $post_language = $polylang->model->get_post_language($post->ID);
+        if ($post_language) {
+            $lang = $post_language->slug;
+        } else {
+            $lang = pll_default_language();
+        }
 
-		// Check if the post type is handle.
-		if (isset($this->post_types[$post->post_type])) {
-			// Build URL. Lang prefix is already handle.
-			return home_url('/'.$this->post_types[$post->post_type]->translated_slugs[$lang]->rewrite['slug'].'/'.($leavename?"%$post->post_type%":get_page_uri( $post->ID )));
-		}
+        // Check if the post type is handle.
+        if (isset($this->post_types[$post->post_type])) {
+            // Build URL. Lang prefix is already handle.
+            return home_url('/'.$this->post_types[$post->post_type]->translated_slugs[$lang]->rewrite['slug'].'/'.($leavename?"%$post->post_type%":get_page_uri( $post->ID )));
+        }
 
-		return $post_link;
-	}
+        return $post_link;
+    }
+
+
+    /**
+     * Allow Breadcrumbs to display Custom Post types translated slug
+     */
+    public function post_type_archive_title_filter($defaultName, $archive_post_type) {
+        if (is_admin()) {
+            global $polylang;
+            $lang = $polylang->pref_lang->slug;
+        } else {
+            $lang = pll_current_language();
+        }
+
+        // Check if the post type is handle.
+        if (isset($this->post_types[$archive_post_type])) {
+            return $this->get_post_type_archive_title($archive_post_type, $lang);
+        }
+
+        return $defaultName;
+    }
+
+
+    /**
+     *
+     * Reproduce "get_post_type_archive_title" WordPress function.
+     *
+     */
+    private function get_post_type_archive_title($post_type, $lang) {
+        global $wp_rewrite, $polylang;
+
+        if (isset($this->post_types[$post_type])) {
+            $translated_slugs = $this->post_types[$post_type]->translated_slugs;
+            $translated_slug = $translated_slugs[$lang];
+
+            if ( ! $translated_slug->has_archive )
+                return false;
+
+            if ( is_array( $translated_slug->rewrite ) ) {
+                // Capitalize custom post type rewrite slug
+                $title = ucfirst($translated_slug->rewrite['slug']);
+            } else {
+                $title = $post_type->name ;
+            }
+        }
+
+        // echo 'YOLO';
+        return $title;
+    }
+
+
+
+
 
 	/**
 	 * Fix "get_post_type_archive_link" for this post type.
