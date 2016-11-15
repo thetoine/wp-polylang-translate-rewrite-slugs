@@ -242,7 +242,6 @@ class Polylang_Translate_Rewrite_Slugs {
             }
         }
 
-        // echo 'YOLO';
         return $title;
     }
 
